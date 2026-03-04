@@ -176,7 +176,7 @@ fn main() {
 
 /// Truncate `s` to at most `max_tokens * 4` characters, cutting at the last
 /// word boundary at or before the limit and appending `...` if truncated.
-fn truncate(s: &str, max_tokens: usize) -> std::borrow::Cow<str> {
+fn truncate(s: &str, max_tokens: usize) -> std::borrow::Cow<'_, str> {
     let limit = max_tokens * 4;
     if s.len() <= limit {
         return std::borrow::Cow::Borrowed(s);
