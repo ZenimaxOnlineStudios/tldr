@@ -1,0 +1,11 @@
+[package]
+name = "tldr"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+clap = { version = "4.5.60", features = ["derive"] }
+walkdir = "2.5.0"
+toml = "1.0.3"
+serde = { version = "1.0.228", features = ["derive"] }
+gray_matter = { version = "0.3.2", features = ["yaml"] }

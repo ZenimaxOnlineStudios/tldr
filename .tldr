@@ -1,0 +1,3 @@
+description = "Rust CLI tool that discovers .tldr files and summarises codebase structure for AI navigation"
+tags = ["cli", "ai", "navigation"]
+docs = ["README.md"]
