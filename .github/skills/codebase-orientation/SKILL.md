@@ -28,41 +28,73 @@ The `description` field has a **hard limit of 50 tokens** (estimated as
 characters ÷ 4, roughly 200 characters). This is intentional — descriptions
 must be terse enough for an AI to scan the entire codebase map in one read.
 
-**Good** — specific, scannable, under the limit:
+**Write the description in one attempt. Do not revise after writing.**
+Descriptions that need revision are usually too long or too vague to begin with.
+
+#### The single-clause rule
+
+A description is one clause that answers: **"what does this directory own?"**
+
+- State the *what*, not the *how* or *why*
+- Name the domain or data type, not the implementation detail
+- Omit phrases like "contains code for", "handles", "responsible for", "this directory" — they add no information
+- Omit motivation ("Foundation for...", "Used by...", "Designed to...") — that's documentation, not a label
+
+#### Good vs bad
+
+| ✅ Good | ❌ Bad — why |
+|--------|-------------|
+| `JWT authentication and session management` | `This directory contains all the code related to how users authenticate` — verbose, circular |
+| `ESO definition data reader from binary .dat files` | `Rust library for reading and serving ESO game definition data from binary .dat files. Foundation for tooling that needs to query or export def data` — two sentences, implementation trivia |
+| `REST API route definitions and middleware` | `Handles incoming HTTP requests and routes them to the correct handler functions` — describes mechanism, not ownership |
+| `Database schema migrations` | `SQL migration files for updating the database schema over time` — "over time" is implied; "SQL migration files" is redundant |
+
+#### Tone
+
+Descriptions are labels, not reviews. Keep them strictly factual.
+
+- Do not include subjective judgements: "legacy", "messy", "poorly organised", "needs refactoring", "technical debt"
+- Do not editorialize: "unfortunately", "oddly", "for historical reasons"
+- Do not include warnings or opinions about quality — those belong in comments or issues, not in a navigation label
+
+If a directory is genuinely confusing or poorly bounded, describe what it *actually contains*, not what you think of it.
+
+| ✅ Factual | ❌ Opinion |
+|-----------|-----------|
+| `Vendor-copied utilities and legacy helpers` | `Messy grab-bag of old utilities that should be cleaned up` |
+| `Authentication — mix of OAuth and legacy session code` | `Legacy auth code that nobody wants to touch` |
+
+#### Formula
+
 ```
-"Handles JWT authentication and session management"
+<noun phrase describing what this owns>
 ```
 
-**Bad** — too verbose, will fail validation:
-```
-"This directory contains all of the code related to how users authenticate
-themselves using JSON Web Tokens, including the logic for creating, signing,
-validating, and refreshing tokens as well as managing user sessions."
-```
-
-When writing a description, aim for a single clause that answers:
-_"what does this directory own?"_ — not a full sentence explaining how it works.
+Examples:
+- `Payment processing and Stripe webhook handling`
+- `Build scripts and CI pipeline configuration`
+- `User-facing React components for the checkout flow`
 
 ## Orientation Workflow
 
 When starting work in a repository, or when asked to locate something:
 
-1. **Get the full map first** — run `tldr` from the repository root:
+1. **Get the full map first** — run `tldr --plain` from the repository root:
    ```
-   tldr
+   tldr --plain
    ```
    Read every entry before proceeding. This is fast and cheap.
 
 2. **If the output is large**, do a shallow pass first, then go deeper:
    ```
-   tldr --depth 2
-   tldr --depth 4
+   tldr --plain --depth 2
+   tldr --plain --depth 4
    ```
 
 3. **Narrow by topic** once you know what tags exist:
    ```
    tldr taglist
-   tldr --filter auth
+   tldr --plain --filter auth
    ```
 
 4. **For more detail** on a relevant directory, open its `.tldr` file directly
@@ -97,10 +129,27 @@ When asked to create or add `.tldr` files:
    ```
    Fix any errors before finishing. A non-zero exit means something is wrong.
 
+## Output Format
+
+By default `tldr` emits coloured output with terminal-width word-wrapping.
+**Always pass `--plain` when running `tldr` programmatically** — this disables
+ANSI colour codes and produces clean, unambiguous output for parsing.
+
+Each entry is one logical record, formatted as:
+
+```
+<path>: <description>
+```
+
+With `--plain` the output is always one line per entry, regardless of terminal
+width. Without `--plain` long descriptions wrap onto continuation lines indented
+to align with the description start — do not mistake these for new entries.
+
 ## Reference
 
 | Command | Effect |
 |---------|--------|
+| `tldr --plain` | **Disable colour and wrapping — use this for programmatic consumption** |
 | `tldr` | List all annotated directories with their descriptions |
 | `tldr <path>` | Search from a specific root instead of cwd |
 | `tldr --depth N` | Limit traversal to N directory levels deep |
@@ -110,6 +159,7 @@ When asked to create or add `.tldr` files:
 | `tldr taglist` | Print all unique tags, sorted — use before `--filter` |
 | `tldr init [path]` | Create a blank `.tldr` template in a directory |
 | `tldr validate [path]` | Check `.tldr` files for correctness and token limits |
+| `tldr validate --max-tokens N` | Override the token limit (default: 50) |
 
 ## When There Are No `.tldr` Files
 

@@ -3,11 +3,11 @@ mod types;
 mod walker;
 
 use clap::{Parser, Subcommand};
+use colored::Colorize;
 use std::collections::BTreeSet;
 use std::env;
 use std::path::PathBuf;
 use toml::Table;
-
 /// Discover and summarise a codebase for AI-assisted navigation.
 ///
 /// tldr walks a directory tree looking for .tldr files. Each .tldr file is a
@@ -66,6 +66,11 @@ struct Cli {
     /// orientation before requesting more.
     #[arg(long, value_name = "N")]
     limit: Option<usize>,
+
+    /// Disable colour output. Colour is also suppressed automatically when
+    /// stdout is not a TTY (e.g. when piped to a file or another process).
+    #[arg(long)]
+    plain: bool,
 
     #[command(subcommand)]
     command: Option<Commands>,
@@ -137,12 +142,16 @@ enum Commands {
 fn main() {
     let cli = Cli::parse();
 
+    if cli.plain {
+        colored::control::set_override(false);
+    }
+
     match cli.command {
         Some(Commands::Taglist { path, frontmatter, depth }) => {
             let root = resolve_root(path);
             let tags = collect_tags(&root, frontmatter, depth);
             for tag in tags {
-                println!("{}", tag);
+                println!("{}", tag.cyan());
             }
         }
         Some(Commands::Init { path }) => {
@@ -167,8 +176,27 @@ fn main() {
                 Some(n) => Box::new(iter.take(n)),
                 None => Box::new(iter),
             };
+            let term_width = textwrap::termwidth().max(40);
             for (rel_path, entry) in limited {
-                println!("{}: {}", rel_path.display(), truncate(&entry.description, 50));
+                let path_str = rel_path.display().to_string();
+                // First line has "path: " before the description, so wrap at
+                // term_width minus that prefix to avoid overflowing on line 1.
+                let prefix_width = path_str.len() + 2;
+                let wrap_width = term_width.saturating_sub(prefix_width).max(20);
+                let desc = truncate(&entry.description, 50);
+                let lines = textwrap::wrap(desc.as_ref(), wrap_width);
+                for (i, line) in lines.iter().enumerate() {
+                    if i == 0 {
+                        println!(
+                            "{}{}{}",
+                            path_str.bold().cyan(),
+                            ": ".dimmed(),
+                            line
+                        );
+                    } else {
+                        println!("  {}", line);
+                    }
+                }
             }
         }
     }
@@ -238,14 +266,14 @@ docs        = []
 fn cmd_init(dir: &PathBuf) {
     let target = dir.join(".tldr");
     if target.exists() {
-        eprintln!("error: .tldr already exists at {}", target.display());
+        eprintln!("{} .tldr already exists at {}", "error:".bold().red(), target.display());
         std::process::exit(1);
     }
     std::fs::write(&target, TLDR_TEMPLATE).unwrap_or_else(|e| {
-        eprintln!("error: could not write {}: {}", target.display(), e);
+        eprintln!("{} could not write {}: {}", "error:".bold().red(), target.display(), e);
         std::process::exit(1);
     });
-    println!("created {}", target.display());
+    println!("{} {}", "created".green(), target.display());
 }
 
 fn cmd_validate(root: &PathBuf, depth: Option<usize>, max_tokens: usize) -> bool {
@@ -257,7 +285,7 @@ fn cmd_validate(root: &PathBuf, depth: Option<usize>, max_tokens: usize) -> bool
         let content = match std::fs::read_to_string(&f.path) {
             Ok(c) => c,
             Err(e) => {
-                eprintln!("{}: error reading file: {}", rel.display(), e);
+                eprintln!("{} {}: error reading file: {}", "error:".bold().red(), rel.display(), e);
                 all_ok = false;
                 continue;
             }
@@ -267,7 +295,7 @@ fn cmd_validate(root: &PathBuf, depth: Option<usize>, max_tokens: usize) -> bool
         let table: Table = match toml::from_str(&content) {
             Ok(t) => t,
             Err(e) => {
-                eprintln!("{}: invalid TOML: {}", rel.display(), e);
+                eprintln!("{} {}: invalid TOML: {}", "error:".bold().red(), rel.display(), e);
                 all_ok = false;
                 continue;
             }
@@ -276,7 +304,7 @@ fn cmd_validate(root: &PathBuf, depth: Option<usize>, max_tokens: usize) -> bool
         // Check for unknown fields
         for key in table.keys() {
             if !matches!(key.as_str(), "description" | "tags" | "docs") {
-                eprintln!("{}: unknown field `{}`", rel.display(), key);
+                eprintln!("{} {}: unknown field `{}`", "error:".bold().red(), rel.display(), key);
                 all_ok = false;
             }
         }
@@ -284,25 +312,25 @@ fn cmd_validate(root: &PathBuf, depth: Option<usize>, max_tokens: usize) -> bool
         // Validate description
         match table.get("description") {
             None => {
-                eprintln!("{}: missing required field `description`", rel.display());
+                eprintln!("{} {}: missing required field `description`", "error:".bold().red(), rel.display());
                 all_ok = false;
             }
             Some(toml::Value::String(s)) if s.is_empty() => {
-                eprintln!("{}: `description` must not be empty", rel.display());
+                eprintln!("{} {}: `description` must not be empty", "error:".bold().red(), rel.display());
                 all_ok = false;
             }
             Some(toml::Value::String(s)) => {
                 let estimated_tokens = s.len() / 4;
                 if estimated_tokens > max_tokens {
                     eprintln!(
-                        "{}: `description` is ~{} tokens (max {}); keep it terse",
-                        rel.display(), estimated_tokens, max_tokens
+                        "{} {}: `description` is ~{} tokens (max {}); keep it terse",
+                        "error:".bold().red(), rel.display(), estimated_tokens, max_tokens
                     );
                     all_ok = false;
                 }
             }
             Some(_) => {
-                eprintln!("{}: `description` must be a string", rel.display());
+                eprintln!("{} {}: `description` must be a string", "error:".bold().red(), rel.display());
                 all_ok = false;
             }
         }
@@ -312,12 +340,12 @@ fn cmd_validate(root: &PathBuf, depth: Option<usize>, max_tokens: usize) -> bool
             match v {
                 toml::Value::Array(arr) => {
                     if arr.iter().any(|x| !x.is_str()) {
-                        eprintln!("{}: `tags` must be an array of strings", rel.display());
+                        eprintln!("{} {}: `tags` must be an array of strings", "error:".bold().red(), rel.display());
                         all_ok = false;
                     }
                 }
                 _ => {
-                    eprintln!("{}: `tags` must be an array", rel.display());
+                    eprintln!("{} {}: `tags` must be an array", "error:".bold().red(), rel.display());
                     all_ok = false;
                 }
             }
@@ -328,12 +356,12 @@ fn cmd_validate(root: &PathBuf, depth: Option<usize>, max_tokens: usize) -> bool
             match v {
                 toml::Value::Array(arr) => {
                     if arr.iter().any(|x| !x.is_str()) {
-                        eprintln!("{}: `docs` must be an array of strings", rel.display());
+                        eprintln!("{} {}: `docs` must be an array of strings", "error:".bold().red(), rel.display());
                         all_ok = false;
                     }
                 }
                 _ => {
-                    eprintln!("{}: `docs` must be an array", rel.display());
+                    eprintln!("{} {}: `docs` must be an array", "error:".bold().red(), rel.display());
                     all_ok = false;
                 }
             }
@@ -342,7 +370,7 @@ fn cmd_validate(root: &PathBuf, depth: Option<usize>, max_tokens: usize) -> bool
 
     if all_ok {
         let count = files.iter().filter(|f| !f.is_markdown).count();
-        println!("validated {} .tldr file{} — all ok", count, if count == 1 { "" } else { "s" });
+        println!("{} validated {} .tldr file{}", "✓".bold().green(), count, if count == 1 { "" } else { "s" });
     }
 
     all_ok
