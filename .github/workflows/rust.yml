@@ -35,5 +35,7 @@ jobs:
       - name: Upload release artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tldr
-          path: target/${{ matrix.BUILD_TARGET }}/tldr
+          name: tldr-${{ matrix.os }}-${{ matrix.BUILD_TARGET }}
+          path: |
+            target/${{ matrix.BUILD_TARGET }}/tldr
+            target/${{ matrix.BUILD_TARGET }}/tldr.exe
