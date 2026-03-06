@@ -14,8 +14,19 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        BUILD_TARGET: [release, debug] # refers to a cargo profile
+        include:
+          - os: ubuntu-latest
+            BUILD_TARGET: release
+            BUILD_OUT_DIR: release
+          - os: ubuntu-latest
+            BUILD_TARGET: dev
+            BUILD_OUT_DIR: debug
+          - os: windows-latest
+            BUILD_TARGET: release
+            BUILD_OUT_DIR: release
+          - os: windows-latest
+            BUILD_TARGET: dev
+            BUILD_OUT_DIR: debug
     outputs:
       release_built: ${{ steps.set-output.outputs.release_built }}
     steps:
@@ -37,5 +48,5 @@ jobs:
         with:
           name: tldr-${{ matrix.os }}-${{ matrix.BUILD_TARGET }}
           path: |
-            target/${{ matrix.BUILD_TARGET }}/tldr
-            target/${{ matrix.BUILD_TARGET }}/tldr.exe
+            target/${{ matrix.BUILD_OUT_DIR }}/tldr
+            target/${{ matrix.BUILD_OUT_DIR }}/tldr.exe
